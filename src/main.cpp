@@ -231,8 +231,10 @@ ON_MOD_LOAD()
     { FILE* f = fopen(g_logpath.c_str(), "w"); if(f) fclose(f); }
     LoadCfg(g_cfg);
     Log("libluaaml 1.0.0 | target=%s scripts=%s root=%s", g_cfg.target.c_str(), g_cfg.scripts.c_str(), g_root.c_str());
-    void* fn = dlsym(RTLD_DEFAULT, "eglSwapBuffers");
-    if(!fn) { Log("eglSwapBuffers tidak ketemu"); return; }
+    void* egl = dlopen("libEGL.so", RTLD_NOW);
+    void* fn = egl ? dlsym(egl, "eglSwapBuffers") : NULL;
+    if(!fn) fn = dlsym(RTLD_DEFAULT, "eglSwapBuffers");
+    if(!fn) { Log("eglSwapBuffers tidak ketemu: %s", dlerror()); return; }
     HOOK(SwapBuffers, fn);
     Log("hook eglSwapBuffers terpasang");
 }
