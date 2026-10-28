@@ -33,8 +33,9 @@ static int l_ncall(lua_State* L){
     hl_orig[s](hl_env[s],hl_thiz[s],v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7]);
     return 0;
 }
+static int l_hookarg(lua_State* L){ int s=(int)luaL_checkinteger(L,1); if(s<0||s>=HL_N) return 0; lua_pushnumber(L,(double)(hl_env[s]&0xFFFFFFFFFFFFL)); lua_pushnumber(L,(double)(hl_thiz[s]&0xFFFFFFFFFFFFL)); return 2; }
 static void HookRegister(lua_State* L){
     lua_register(L,"hook",l_hook);
     lua_register(L,"hooklog",l_hooklog);
-    lua_register(L,"ncall",l_ncall);
+    lua_register(L,"ncall",l_ncall); lua_register(L,"hookarg",l_hookarg);
 }
