@@ -137,6 +137,7 @@ static int PhdrCb(struct dl_phdr_info* info, size_t, void* data)
 
 static std::atomic<bool> g_abort(false);
 #include "mem.h"
+#include "hooklog.h"
 
 // ===================== Skrip per-frame =====================
 static int l_print(lua_State* L)
@@ -197,7 +198,7 @@ static void StartScripts()
     gL = luaL_newstate();
     luaL_openlibs(gL);
     lua_register(gL, "print", l_print);
-    MemRegister(gL);
+    MemRegister(gL); HookRegister(gL);
     std::string pp = "package.path=\"" + dir + "/?.lua;\"..package.path";
     luaL_dostring(gL, pp.c_str());
 
@@ -295,7 +296,7 @@ static std::string RunShell(const std::string& code)
         luaL_openlibs(sL);
         lua_getglobal(sL, "os"); lua_pushnil(sL); lua_setfield(sL, -2, "exit"); lua_pop(sL, 1);
         lua_register(sL, "print", sh_print);
-        MemRegister(sL);
+        MemRegister(sL); HookRegister(sL);
     }
     RefreshCtx(sL);
 
