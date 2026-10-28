@@ -416,7 +416,6 @@ static void UiBoot(void*)
     jmethodID m = env->GetStaticMethodID(g_shell, "boot", "(Landroid/app/Activity;)Z");
     jboolean ok = env->CallStaticBooleanMethod(g_shell, m, act);
     if(ClearExc(env, "Shell.boot")) ok = JNI_FALSE;
-    if(act) env->DeleteLocalRef(act);
     g_uiReady.store(ok == JNI_TRUE);
     if(ok && !wasReady) { wasReady = true; Log("[ui] panel terpasang"); }
 }
