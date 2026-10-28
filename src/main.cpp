@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <string>
@@ -59,31 +60,43 @@ static std::string Trim(const std::string& s)
     return s.substr(a, b - a + 1);
 }
 
+static const char* kDefaultCfg =
+    "# target: (opsional) lib yang ditunggu sebelum skrip per-frame dimulai. Kosong = langsung mulai.\n"
+    "# Shell tidak butuh target: pakai libs(), lib(\"nama.so\"), maps(), rd*/wr*/scan().\n"
+    "# target=librio.so\n"
+    "scripts=lua\n"
+    "# batas waktu satu eksekusi shell (ms)\n"
+    "timeout=5000\n"
+    "# 1 = tampilkan UI shell, 0 = matikan\n"
+    "ui=1\n";
+
 static void LoadCfg(Cfg& c)
 {
     std::string p = g_root + "/config.cfg";
     FILE* f = fopen(p.c_str(), "r");
     if(!f)
     {
-        f = fopen(p.c_str(), "w");
-        if(f)
+        int e = errno;
+        if(e == ENOENT)
         {
-            fputs("# target: nama file lib game (opsional). Jika diisi, base address dikirim ke skrip & shell.\n"
-                  "# target=libGame.so\n"
-                  "# folder skrip di dalam folder ini; semua *.lua dimuat berurutan\n"
-                  "scripts=lua\n"
-                  "# batas waktu satu eksekusi shell (ms)\n"
-                  "timeout=5000\n"
-                  "# 1 = tampilkan UI shell, 0 = matikan\n"
-                  "ui=1\n", f);
-            fclose(f);
+            FILE* w = fopen(p.c_str(), "w");
+            if(w) { fputs(kDefaultCfg, w); fclose(w); Log("[cfg] config.cfg belum ada, default dibuat"); }
+            else Log("[cfg] gagal membuat config.cfg: errno=%d (%s)", errno, strerror(errno));
         }
+        else Log("[cfg] gagal membuka config.cfg: errno=%d (%s), file TIDAK ditimpa, pakai default", e, strerror(e));
         return;
     }
     char line[512];
+    bool first = true;
     while(fgets(line, sizeof(line), f))
     {
-        std::string s = Trim(line);
+        char* s0 = line;
+        if(first)
+        {
+            first = false;
+            if((unsigned char)s0[0] == 0xEF && (unsigned char)s0[1] == 0xBB && (unsigned char)s0[2] == 0xBF) s0 += 3;
+        }
+        std::string s = Trim(s0);
         if(s.empty() || s[0] == '#') continue;
         size_t eq = s.find('=');
         if(eq == std::string::npos) continue;
@@ -95,6 +108,8 @@ static void LoadCfg(Cfg& c)
         else if(k == "ui") c.ui = atoi(v.c_str());
     }
     fclose(f);
+    Log("[cfg] terbaca: target=%s scripts=%s timeout=%d ui=%d",
+        c.target.empty() ? "(none)" : c.target.c_str(), c.scripts.c_str(), c.timeout, c.ui);
 }
 
 static int PhdrCb(struct dl_phdr_info* info, size_t, void* data)
@@ -119,6 +134,9 @@ static int PhdrCb(struct dl_phdr_info* info, size_t, void* data)
     li->size = maxend;
     return 1;
 }
+
+static std::atomic<bool> g_abort(false);
+#include "mem.h"
 
 // ===================== Skrip per-frame =====================
 static int l_print(lua_State* L)
@@ -179,6 +197,7 @@ static void StartScripts()
     gL = luaL_newstate();
     luaL_openlibs(gL);
     lua_register(gL, "print", l_print);
+    MemRegister(gL);
     std::string pp = "package.path=\"" + dir + "/?.lua;\"..package.path";
     luaL_dostring(gL, pp.c_str());
 
@@ -218,7 +237,6 @@ static void RunFrames()
 // ===================== Shell Lua =====================
 static std::mutex g_shMx;
 static lua_State* sL = nullptr;
-static std::atomic<bool> g_abort(false);
 static std::string g_out;
 static std::chrono::steady_clock::time_point g_runStart;
 
@@ -277,6 +295,7 @@ static std::string RunShell(const std::string& code)
         luaL_openlibs(sL);
         lua_getglobal(sL, "os"); lua_pushnil(sL); lua_setfield(sL, -2, "exit"); lua_pop(sL, 1);
         lua_register(sL, "print", sh_print);
+        MemRegister(sL);
     }
     RefreshCtx(sL);
 
