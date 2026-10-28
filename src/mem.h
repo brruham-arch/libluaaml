@@ -10,7 +10,14 @@
 static int g_memFd = -1;
 static int MemFd()
 {
-    if(g_memFd < 0) g_memFd = open("/proc/self/mem", O_RDWR | O_CLOEXEC);
+    static bool tried = false;
+    if(g_memFd < 0 && !tried)
+    {
+        tried = true;
+        g_memFd = open("/proc/self/mem", O_RDWR | O_CLOEXEC);
+        if(g_memFd < 0) Log("[mem] open /proc/self/mem gagal: errno=%d (%s)", errno, strerror(errno));
+        else Log("[mem] /proc/self/mem terbuka");
+    }
     return g_memFd;
 }
 static inline uint64_t Untag(uint64_t a) { return a & 0x00FFFFFFFFFFFFFFULL; }
@@ -38,8 +45,28 @@ static bool GetAddr(lua_State* L, int i, uint64_t& out)
     return false;
 }
 
+static bool PipeRead(uint64_t a, void* buf, size_t n)
+{
+    static std::mutex mx;
+    static int p[2] = {-1, -1};
+    std::lock_guard<std::mutex> lk(mx);
+    if(p[0] < 0 && pipe2(p, O_CLOEXEC | O_NONBLOCK) != 0) { p[0] = p[1] = -1; return false; }
+    size_t done = 0;
+    while(done < n)
+    {
+        size_t c = std::min<size_t>(n - done, 4096);
+        ssize_t w = write(p[1], (const void*)(a + done), c);
+        if(w <= 0) return false;
+        ssize_t r = read(p[0], (char*)buf + done, (size_t)w);
+        if(r != w) return false;
+        done += (size_t)w;
+    }
+    return true;
+}
+
 static bool RawRead(uint64_t a, void* buf, size_t n)
 {
+    if(PipeRead(a, buf, n)) return true;
     int fd = MemFd();
     if(fd < 0) return false;
     size_t done = 0;

@@ -103,18 +103,34 @@ public final class Shell {
         } catch (Throwable ignored) { }
     }
 
-    private static Button btn(Context c, String t, View.OnClickListener l) {
-        Button b = new Button(c);
+    private static android.graphics.drawable.Drawable btnBg() {
+        GradientDrawable n = new GradientDrawable();
+        n.setColor(0xFF2A3441);
+        n.setCornerRadius(dp(5));
+        GradientDrawable pr = new GradientDrawable();
+        pr.setColor(0xFF3D6FB5);
+        pr.setCornerRadius(dp(5));
+        android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
+        sl.addState(new int[] { android.R.attr.state_pressed }, pr);
+        sl.addState(new int[] {}, n);
+        return sl;
+    }
+
+    private static TextView btn(Context c, String t, View.OnClickListener l) {
+        TextView b = new TextView(c);
         b.setText(t);
-        b.setAllCaps(false);
+        b.setTextColor(0xFFE6EDF3);
         b.setTextSize(11);
-        b.setMinHeight(0);
-        b.setMinimumHeight(0);
-        b.setMinWidth(0);
-        b.setMinimumWidth(0);
-        b.setPadding(dp(2), dp(5), dp(2), dp(5));
+        b.setGravity(Gravity.CENTER);
+        b.setSingleLine(true);
+        b.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        b.setPadding(dp(3), 0, dp(3), 0);
+        b.setBackground(btnBg());
+        b.setClickable(true);
         b.setOnClickListener(l);
-        b.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(28), 1f);
+        lp.setMargins(dp(2), dp(2), dp(2), dp(2));
+        b.setLayoutParams(lp);
         return b;
     }
 
@@ -137,8 +153,9 @@ public final class Shell {
         ViewGroup root = (ViewGroup) a.findViewById(android.R.id.content);
         if (root == null) root = (ViewGroup) a.getWindow().getDecorView();
 
-        int pw = Math.min((int) (dm.widthPixels * 0.94f), dp(640));
-        int ph = (int) (dm.heightPixels * 0.55f);
+        boolean land = dm.widthPixels > dm.heightPixels;
+        int pw = Math.min((int) (dm.widthPixels * (land ? 0.6f : 0.94f)), dp(560));
+        int ph = (int) (dm.heightPixels * (land ? 0.8f : 0.6f));
 
         panel = new LinearLayout(a);
         panel.setOrientation(LinearLayout.VERTICAL);
@@ -162,7 +179,7 @@ public final class Shell {
 
         input = new EditText(a);
         input.setTypeface(Typeface.MONOSPACE);
-        input.setTextSize(13);
+        input.setTextSize(12);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(0xFF7A8794);
         input.setHint("kode Lua... (contoh: 1+1 atau print(ctx.base))");
@@ -170,7 +187,7 @@ public final class Shell {
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         input.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_FLAG_NO_FULLSCREEN);
         input.setMinLines(2);
-        input.setMaxLines(4);
+        input.setMaxLines(3);
         input.setGravity(Gravity.TOP | Gravity.START);
         input.setBackgroundColor(0xFF0B0F14);
         input.setPadding(dp(6), dp(4), dp(6), dp(4));
