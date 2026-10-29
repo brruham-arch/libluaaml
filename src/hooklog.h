@@ -4,9 +4,11 @@ typedef long (*hl_fn)(long,long,long,long,long,long,long,long,long,long);
 static hl_fn hl_orig[HL_N];
 static long hl_env[HL_N], hl_thiz[HL_N];
 static bool hl_on[HL_N];
+static long hl_b[HL_N][256][4]; static unsigned hl_n[HL_N], hl_r[HL_N];
 template<int N> static long hl_hook(long a0,long a1,long a2,long a3,long a4,long a5,long a6,long a7,long a8,long a9)
 {
     hl_env[N]=a0; hl_thiz[N]=a1;
+    { unsigned i=hl_n[N]++%256; hl_b[N][i][0]=a2; hl_b[N][i][1]=a3; hl_b[N][i][2]=a4; hl_b[N][i][3]=a5; }
     if(hl_on[N]) __android_log_print(ANDROID_LOG_INFO,"lhook","[%d] %ld %ld %ld %ld %ld %ld %ld %ld",N,a2,a3,a4,a5,a6,a7,a8,a9);
     return hl_orig[N](a0,a1,a2,a3,a4,a5,a6,a7,a8,a9);
 }
@@ -34,8 +36,18 @@ static int l_ncall(lua_State* L){
     return 0;
 }
 static int l_hookarg(lua_State* L){ int s=(int)luaL_checkinteger(L,1); if(s<0||s>=HL_N) return 0; lua_pushnumber(L,(double)(hl_env[s]&0xFFFFFFFFFFFFL)); lua_pushnumber(L,(double)(hl_thiz[s]&0xFFFFFFFFFFFFL)); return 2; }
+static int l_hookbuf(lua_State* L){
+    int s=(int)luaL_checkinteger(L,1); lua_newtable(L);
+    if(s<0||s>=HL_N) return 1;
+    unsigned n=hl_n[s], r=hl_r[s]; if(n-r>256) r=n-256;
+    int k=1;
+    for(unsigned i=r;i<n;i++){ lua_newtable(L);
+      for(int j=0;j<4;j++){ lua_pushnumber(L,(double)hl_b[s][i%256][j]); lua_rawseti(L,-2,j+1); }
+      lua_rawseti(L,-2,k++); }
+    hl_r[s]=n; return 1;
+}
 static void HookRegister(lua_State* L){
     lua_register(L,"hook",l_hook);
     lua_register(L,"hooklog",l_hooklog);
-    lua_register(L,"ncall",l_ncall); lua_register(L,"hookarg",l_hookarg);
+    lua_register(L,"ncall",l_ncall); lua_register(L,"hookarg",l_hookarg); lua_register(L,"hookbuf",l_hookbuf);
 }
